@@ -1,17 +1,12 @@
-#
-# $Rev:: 205                                                          $:  
-# $Author:: roodman                                                   $:  
-# $LastChangedDate:: 2015-05-20 10:29:08 -0700 (Wed, 20 May 2015)     $:
-#
 import os
 import numpy
+import pandas as pd
 import numpy.lib.index_tricks as itricks
 import scipy
 import statsmodels.api as sm
 import copy
 import pickle
 import pdb
-import csv
 from collections import OrderedDict
 from matplotlib import pyplot as plt
 from matplotlib import cm,colors
@@ -26,7 +21,7 @@ maxZernikeTerm = 15
 
 ### Utility routines for meshes
 
-def adjustAllMeshes(meshDict,donut_summary,zangleconv=206.264806247):
+def adjustAllMeshes(meshDict,donut_summary,zangleconv=206.264806247,adjustAngleAll=None):
     """ utility routine to adjust all the meshes in a dict from analyzeDonut
     NOTE that this guy merges INPLACE, and it adjusts w/ 3 DOF for each mesh
     """
@@ -38,7 +33,14 @@ def adjustAllMeshes(meshDict,donut_summary,zangleconv=206.264806247):
            thetax = donut_summary["z%dthetax" % (i)]
            thetay = donut_summary["z%dthetay" % (i)]
            delta = donut_summary["z%ddelta" % (i)]
-           print("Adjust ",i,thetax,thetay,delta)
+           print("Measure",i,thetax,thetay,delta)
+
+           if adjustAngleAll !=None:
+               if not adjustAngleAll[i]:
+                   thetax = 0.
+                   thetay = 0.
+           print("Adjust",i,thetax,thetay,delta)
+
            if i==4:
                thisMesh.adjustMesh(thetax,thetay,delta,angleconversion=zangleconv)
            else:
@@ -190,6 +192,31 @@ def mkDonutAna(meshName,sensorSet,method,methodVal=None,directory="Meshes",donut
 
     da = donutana(**inDict)
     return da
+
+
+def mkDonutAnaDF(dataFrameName,zPointsList,sensorSet,method,methodVal=None,donutCutString="",nInterpGrid=8,doTrefoil=True,doSpherical=True,doQuadrefoil=True,zVarPattern="ZERN%d"):
+    """ make a donutana object
+    """
+
+    inDict = {"zPointsDataFrame":dataFrameName,
+              "zVarPattern":zVarPattern,
+              "zPointsList":zPointsList,
+              "sensorSet":sensorSet,
+              "doTrefoil":doTrefoil,
+              "doSpherical":doSpherical,
+              "doQuadrefoil":doQuadrefoil,
+              "unVignettedOnly":False,
+              "interpMethod":method,
+              "methodVal":methodVal,
+              "nInterpGrid":nInterpGrid,
+              "histFlag":True,
+              "debugFlag":True,               
+              "donutCutString":donutCutString}
+
+    da = donutana(**inDict)
+    return da
+
+
 
 def getCentralVal(da):
     """ calculate mean,rms at the center of the focal plane
@@ -469,13 +496,17 @@ def washnflatMesh(meshNameA,meshNameB,pickleOut=None,directoryIn="",directoryOut
     return outputDict
 
 
-
-def combineMeshes(meshNameRef,meshNames,imageList,sensorSet="ScienceOnly",method="idw",methodVal=(20,1.0),directoryIn="",directoryOut="",directoryRef="",pickleOut=None,nameDescr="_All"):
+def combineMeshes(meshNameRef,meshNames,imageList,sensorSet="ScienceOnly",method="idw",sensorSetRef="None",methodRef="None",methodVal=(20,1.0),directoryIn="",directoryOut="",directoryRef="",pickleOut=None,nameDescr="_All",adjustAngleAll=None):
     """ Make a combined mesh by adjusting and culling a series of Meshes against a reference, and then
     merging them together
     """
 
-    daAr2 = mkDonutAna(meshNameRef,sensorSet,method,directory=directoryRef,methodVal=methodVal)
+    if methodRef == 'None':
+        methodRef = method
+    if sensorSetRef == 'None':
+        sensorSetRef = sensorSet
+    
+    daAr2 = mkDonutAna(meshNameRef,sensorSetRef,methodRef,directory=directoryRef,methodVal=methodVal)
     dictOMeshDict = {}
     for i in imageList:
 
@@ -484,7 +515,7 @@ def combineMeshes(meshNameRef,meshNames,imageList,sensorSet="ScienceOnly",method
         meshNameB = meshNames + "_%d" % (i)
         daB = mkDonutAna(meshNameB,sensorSet,None,directory=directoryIn)
         meshDictBr1 = daAr2.analyzeMeshes(daB.meshDict,doCull=True,cullCut=0.20)
-        adjustAllMeshes(meshDictBr1,meshDictBr1["donut_summary"])
+        adjustAllMeshes(meshDictBr1,meshDictBr1["donut_summary"],adjustAngleAll=adjustAngleAll)
         
         # save this meshDict in a List
         dictOMeshDict[i] = meshDictBr1
@@ -497,6 +528,13 @@ def combineMeshes(meshNameRef,meshNames,imageList,sensorSet="ScienceOnly",method
     if pickleOut!=None:
         pickle.dump(dictOMeshDict,open(os.path.join(directoryOut,pickleOut),"wb"))
 
+def getDonutSummary(pickleFileName):
+    dict = pickle.load(open(pickleFileName,"rb"))
+    df = pd.DataFrame()
+    for akey in dict.keys():
+        dSum = dict[akey]['donut_summary']
+        df = df.append(pd.DataFrame(dSum,index=[int(akey)]))
+    return df
         
 def accumulateMeshes(meshNames,imageList,adjustDict,sensorSet="ScienceOnly",directoryIn="",directoryOut=""):
     """ Make a combined mesh by adjusting a series of Meshes according to a predetermined set of delta,thetax,y
@@ -704,185 +742,4 @@ For Z4 it adjusts the FandA mesh to have median(extrafocal) = -median(intrafocal
     adjustAllMeshes(daF.meshDict,summaryDict)
     return summaryDict
 
-def dumpCsv(meshDict,filename="dadata.csv",expid=None,header=True,meshes=[4,5,6,7,8,9,10,11,14,15]):
-    """ dumps a csv file with x,y,z4,z5 etc... from the interpolated points in all the meshes
-    """
-    # collect meshes
-    meshList = []
-    for i in meshes:
-        meshName = "z%sMesh" % (i)
-        meshList.append(meshDict[meshName])
-
-    # now loop through data and stack it up
-    dataList = []    
-    coordList = meshList[0].coordList    
-    for iCoord in coordList:
-        try:
-            x,y = meshList[0].interpGrids[iCoord]
-            dataStack = numpy.vstack((x.flatten(),y.flatten()))
-            for aMesh in meshList:
-                val = (aMesh.interpValues[iCoord]).flatten()
-                dataStack = numpy.vstack((dataStack,val))
-            # copy from dataStack to the list
-            for i in range(dataStack.shape[1]):
-                dataList.append(dataStack[:,i])
-        except:
-            print("dumpCSv: problem at ",iCoord)
-
-    # write csv file
-    csvFile = open(filename,"w")
-
-    fields = OrderedDict([('x',None),('y',None)])
-    fields['expid'] = None
-    for i in meshes:
-        fields['z%s' % (i)] = None
-    writerOut = csv.DictWriter(csvFile,fieldnames=fields)
-    if header:
-        writerOut.writeheader()
-
-    for i in range(len(dataList)):
-        outDict = {}
-        data = dataList[i]
-        outDict['x'] = data[0]
-        outDict['y'] = data[1]
-        if expid!=None:
-            outDict['expid'] = expid
-        else:
-            outDict['expid'] = 0
-        j = 0
-        for i in meshes:
-            outDict['z%s' % (i)] = data[2+j]
-            j = j + 1
-        writerOut.writerow(outDict)
-                        
-    # done
-    return dataList            
-
-
-def dumpCsvPlus(meshDict,filename="dadata.csv",expid=None,header=True,meshes=[4,5,6,7,8,9,10,11,14,15]):
-    """ dumps a csv file with x,y,z4,z5 etc... from the interpolated points in all the meshes
-
-    This is a mess - switch to using pandas Data Frames??!!!
-    """
-    # collect meshes
-    meshList = []
-    for i in meshes:
-        meshName = "z%sMesh" % (i)
-        meshList.append(meshDict[meshName])
-
-    # now loop through data and stack it up
-    dataList = []    
-    coordList = meshList[0].coordList    
-    for iCoord in coordList:
-        if iCoord != 'S30' and iCoord != 'N30':
-            x,y = meshList[0].interpGrids[iCoord]
-            dataStack = numpy.vstack((x.flatten(),y.flatten()))
-            # zern data first
-            for aMesh in meshList:
-                val = (aMesh.interpValues[iCoord]).flatten()
-                dataStack = numpy.vstack((dataStack,val))
-            # MAD values
-            for aMesh in meshList:
-                val = (aMesh.interpMAD[iCoord]).flatten()
-                dataStack = numpy.vstack((dataStack,val))
-            # Nentry values
-            for aMesh in meshList:
-                val = (aMesh.interpNentry[iCoord]).flatten()
-                dataStack = numpy.vstack((dataStack,val))
-            # copy from dataStack to the list
-            for i in range(dataStack.shape[1]):
-                dataList.append(dataStack[:,i])
-
-    # write csv file
-    csvFile = open(filename,"w")
-
-    fields = OrderedDict([('x',None),('y',None)])
-    fields['expid'] = None
-    for i in meshes:
-        fields['z%s' % (i)] = None
-        fields['MAD%s' % (i)] = None
-        fields['nEntry%s' % (i)] = None
-
-
-    writerOut = csv.DictWriter(csvFile,fieldnames=fields)
-    if header:
-        writerOut.writeheader()
-
-    for i in range(len(dataList)):
-        outDict = {}
-        data = dataList[i]
-        outDict['x'] = data[0]
-        outDict['y'] = data[1]
-        if expid!=None:
-            outDict['expid'] = expid
-        else:
-            outDict['expid'] = 0
-        j = 0
-        for i in meshes:
-            outDict['z%s' % (i)] = data[2+j]
-            j = j + 1
-        writerOut.writerow(outDict)
-                        
-    # done
-    return dataList            
-
-
     
-
-def compareMeshSequence(meshPrefix,imageStr,nInterpGrid=3):
-
-    """ compare a set of meshes...
-    compare individual images to the _All, do just iZ=4,5,6
-    use the pickle from comboMeshes which are post-adjustment
-    use BMedian now as the method!
-    """
-
-    plt.interactive(True)
-    
-    # probably should use nInterpGrid with a value here to match 2n x n bins/CCD for each image
-    meshName1 = meshPrefix + "_All"
-    da1 = mkDonutAna(meshName1,"ScienceOnly","bmedian",directory="ComboMeshesv20",nInterpGrid=nInterpGrid)
-    dumpCsv(da1.meshDict,filename=meshPrefix+"_All.csv",meshes=[4,5,6,7,8,9,10])
-
-    comboPickle = pickle.load(open("ComboMeshesv20/%s_All.pickle" % (meshPrefix)))
-
-    imageList = decodeNumberList(imageStr)
-
-    for i in imageList:
-
-        print("At image ",i)
-        meshDict = comboPickle[i]
-        meshName2 = "%s_%d" % (meshPrefix,i)
-
-        iZs = [4,5,6,7,8,9,10]
-        minDict = {4:-20.,5:-0.2,6:-0.2,7:-0.075,8:-0.075,9:-0.05,10:-0.05,11:-0.05,14:-0.05,15:-0.05}
-        maxDict = {4:20.,5:0.2,6:0.2,7:0.075,8:0.075,9:0.05,10:0.05,11:0.05,14:0.05,15:0.05}
-        diffMeshDict = {}
-        for iZ in iZs:
-            meshName = "z%dMesh" % (iZ)
-            if meshName in da1.meshDict and meshName in meshDict:
-
-                # need to rebuild the interpolation for the mesh in the pickle, must start all over from the points!
-
-                aMesh = meshDict[meshName]
-                x,y,z = aMesh.getXYZpoints()
-                oldGridArray = aMesh.gridArray
-                coordList = aMesh.coordList
-                gridArray = {}
-                for icoord in coordList:
-                    # remake as a 2n x n grid in each CCD
-                    grid = oldGridArray[icoord]
-                    grid[0] = 2*nInterpGrid
-                    grid[3] = nInterpGrid
-                    gridArray[icoord] = grid
-                aNewMesh = PointMesh(coordList,gridArray,aMesh.pointsArray,myMethod='bmedian')
-
-                diffMesh = aNewMesh.subtractMesh(da1.meshDict[meshName])
-                diffMeshDict[meshName] = diffMesh
-
-                f,a,c = diffMesh.plotMeshMPL2D(zmin=minDict[iZ],zmax=maxDict[iZ],cmap=cm.jet)
-                f.savefig(meshName1+"-minus-"+meshName2+"_bmedian_z%d.png" % (iZ))
-                plt.close()
-
-        dumpCsv(diffMeshDict,filename=meshName1+"-minus-"+meshName2+".csv",expid=i,header=False,meshes=[4,5,6,7,8,9,10])
-

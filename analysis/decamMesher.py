@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 from astropy.stats import median_absolute_deviation
+from scipy.interpolate import interp1d
 import argparse
 import copy
 import pdb
@@ -88,19 +89,68 @@ def addNNMAD(df,zernList):
         #print(idonut,df.loc[idonut,'nmadNN5'],df.shape)
         del df_near
 
+    return
+
+def calcnMad(xarr,yarr,nx=100,xmin=5.,xmax=8.0,ymin=0.,ymax=10.0):
+
+    dx = (xmax-xmin)/nx
+    bins = np.arange(xmin,xmax,dx)
+    ind = np.digitize(xarr,bins)
+    xval = []
+    xerr = []
+    yval = []
+    yerr = []
+    for i in range(len(bins)-1):
+
+        here = (ind==i)
+        ygood = np.logical_and(yarr>=ymin,yarr<=ymax)
+        ok = np.logical_and(ygood,here)
+        yinthisbin = yarr[ok]
+        yhere = np.array(yinthisbin)
+        n = len(yinthisbin)
+        if n>0:
+            xval.append(0.5*(bins[i+1]+bins[i]))
+            xerr.append(0.5*(bins[i+1]-bins[i]))
+            median_value = np.median(yhere)
+            mad_value = median_absolute_deviation(yhere)
+            yval.append(median_value)
+            yerr.append(mad_value)
+
+    # interpolants
+    interp_median = interp1d(xval, yval, kind='cubic',fill_value="extrapolate")
+    interp_mad = interp1d(xval, yerr, kind='cubic',fill_value="extrapolate")
+
+    # calculate nMad
+    nMad = (yarr - interp_median(xarr))/interp_mad(xarr)
+    
+    return nMad
+
+def addMadError(df,zernList):
+    """ Add nMadError values to the Data Frame
+    """
+
+    # add columns to the DataFrame, for each zernike term, find the Median and MAD of the ZERNXE vs. log10(nEle)
+    # then calculate how many MAD the pull is above this value
+
+    # loop over Zernike Terms
+    for iZ in zernList:
+        df['nMadError%d' % (iZ)] = calcnMad(np.log10(df['NELE']),df['ZERN%dE' % (iZ)])
+
     return 
+
 
 def addToData(df,extList,zernList):
     """ add some information to the DataFrame
     """
 
     # add zern4 converted to focal distance
-    df['Z4'] = df.ZERN4 * (1500./8.7)
-    df['Z4E'] = df.ZERN4E * (1500./8.7)
+    df['Z4'] = df.ZERN4 * (172.)
+    df['Z4E'] = df.ZERN4E * (172.)
 
     # calculate maxMAD and maxMADNN
     newdf = addMAD(df,extList,zernList)
     addNNMAD(newdf,zernList)
+    addMadError(newdf,zernList)
 
     return newdf
 
@@ -115,9 +165,10 @@ def passCuts(df,cutDict):
     absz4HiCut = cutDict["absz4HiCut"]
     madCut = cutDict["nMADCut"]
     madNNCut = cutDict["nMADNNCut"]
+    nMadErrorCut = cutDict["nMadErrorCut"]
 
     nelePass = np.log10(df.NELE) > neleCut
-    sumsqzernPass = np.sqrt(np.power(df.ZERN5,2)+np.power(df.ZERN5,2)+np.power(df.ZERN5,2)+np.power(df.ZERN5,2)) < sumsqzernCut
+    sumsqzernPass = np.sqrt(np.power(df.ZERN5,2)+np.power(df.ZERN6,2)+np.power(df.ZERN7,2)+np.power(df.ZERN8,2)) < sumsqzernCut
     ncalcallPass = df.NCALCALL < ncalcallCut
     rdecamPass = np.sqrt(np.power(df.XDECAM,2)+np.power(df.YDECAM,2)) < rdecamCut
     z4LoPass = np.abs(df.ZERN4) > absz4LoCut
@@ -125,7 +176,9 @@ def passCuts(df,cutDict):
     madPass = (df.filter(regex='nmad[0-9]').min(axis=1) > -madCut) & (df.filter(regex='nmad[0-9]').max(axis=1) < madCut)
     madNNPass = (df.filter(regex='nmadNN[0-9]').min(axis=1) > -madNNCut) & (df.filter(regex='nmadNN[0-9]').max(axis=1) < madNNCut)
 
-    allPass = nelePass & sumsqzernPass & ncalcallPass & rdecamPass & z4LoPass & z4HiPass & madPass & madNNPass
+    nMadErrorPass = df.filter(regex='nMadError[0-9]').max(axis=1) < nMadErrorCut
+                         
+    allPass = nelePass & sumsqzernPass & ncalcallPass & rdecamPass & z4LoPass & z4HiPass & madPass & madNNPass & nMadErrorPass
 
     #df['nelePass'] = nelePass
     #df['sumsqzernPass'] = sumsqzernPass
@@ -185,6 +238,7 @@ def doMesher(optDict):
     # loop over files
     resultsDict = {}
     for ifile in paramDict["fileList"]:
+        print("mesher: doing this file: ",ifile)
 
         # filter DataFrame by ifile
         df_file = df.loc[(df.IFILE == ifile)]
@@ -291,6 +345,10 @@ if __name__ == '__main__':
                         dest="rdecamCut",
                         default=225.,type=float,
                         help="cut on decam Radius")
+    parser.add_argument("-nMadErrorCut", "--nMadErrorCut",
+                        dest="nMadErrorCut",
+                        default=4.,type=float,
+                        help="cut on MAD of Zernikes")
     
     # collect the options 
     options = parser.parse_args()

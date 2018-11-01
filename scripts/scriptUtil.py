@@ -4,6 +4,8 @@ import sys
 import pdb
 import os
 import glob
+import subprocess
+import time
 
 class bunch(object):
     """ convert a dictionary to a Namespace
@@ -275,3 +277,25 @@ def dequote(s):
     if (s[0] == s[-1]) and s.startswith(("'", '"')):
         return s[1:-1]
     return s
+
+
+def waitForBatch(delay=60.0,maxcount=100,commands=['bjobs', '-sum','-noheader','-u','roodman'],nJobsCheck=1):
+    """ check that all Batch jobs have finished (except allow nJobsCheck to be running to include the main script)
+    """
+    ok = False
+    count = 0
+    while (not ok):        
+        result = subprocess.run(commands, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # decode number of jobs
+        njobs = int(result.stdout.rsplit()[0])
+        print("waitForBatch: ",njobs," jobs still running")
+        if (njobs==nJobsCheck):
+            ok = True
+            continue
+            
+        time.sleep(delay)
+        count = count+1
+        if (count>=maxcount):
+            ok = True
+
+    return
