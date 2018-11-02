@@ -1,9 +1,4 @@
 #! /usr/bin/env python
-# 
-# $Rev:: 222                                                          $:  
-# $Author:: roodman                                                   $:  
-# $LastChangedDate:: 2018-07-18 17:26:50 -0700 (Wed, 18 Jul 2018)     $: 
-#
 #
 # script to do all Donut stuff - for DECam images
 # this script is the one that SETS ALL DEFAULTS!!!!

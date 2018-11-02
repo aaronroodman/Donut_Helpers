@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 #
-#
 # Worker code to fit multiple donuts with donutfit for DESI
 #
 import numpy
@@ -9,7 +8,7 @@ import os
 import shutil
 from distutils.dir_util import mkpath
 from donutlib.donutfit import donutfit
-#from donutlib.desiutil import desiinfo
+from donutlib.desiutil import desiinfo
 from scriptUtil import parsePipelineArguments,dequote
 import pdb
 
@@ -52,7 +51,7 @@ def main():
     fpaList3 = options.fixedParamArray3
 
     # initialize donutfit 
-    initDict = {"nZernikeTerms":options.nZernikeTerms,"fixedParamArray1":fpaList1,"fixedParamArray2":fpaList2,"fixedParamArray3":fpaList3,"nFits":options.nFits,"nPixels":options.nPixels,"nbin":options.nbin,"scaleFactor":options.scaleFactor,"pixelOverSample":options.pixelOverSample,"iTelescope":options.iTelescope,"inputrzero":options.rzero,"debugFlag":options.debugFlag}
+    initDict = {"nZernikeTerms":options.nZernikeTerms,"fixedParamArray1":fpaList1,"fixedParamArray2":fpaList2,"fixedParamArray3":fpaList3,"nFits":options.nFits,"nPixels":options.nPixels,"nbin":options.nbin,"scaleFactor":options.scaleFactor,"pixelOverSample":options.pixelOverSample,"iTelescope":options.iTelescope,"inputrzero":options.rzero,"debugFlag":options.debugFlag,"gain":options.gain,"wavefrontMap":None}
     df = donutfit(**initDict)
 
     # build inputZernikeDict 

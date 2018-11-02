@@ -1,10 +1,5 @@
 #! /usr/bin/env python
 #
-# $Rev:: 222                                                              $:  
-# $Author:: roodman                                                       $:  
-# $LastChangedDate:: 2018-07-18 17:26:50 -0700 (Wed, 18 Jul 2018)         $:  
-#
-#
 # Worker code to fit multiple donuts with donutfit
 #
 import numpy
