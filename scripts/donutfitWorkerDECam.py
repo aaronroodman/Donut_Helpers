@@ -2,11 +2,12 @@
 #
 # Worker code to fit multiple donuts with donutfit
 #
-import numpy
+import numpy as np
 import glob
 import os
 import shutil
 from distutils.dir_util import mkpath
+from donutlib.wavefit import wavefit
 from donutlib.donutfit import donutfit
 from donutlib.decamutil import decaminfo
 from donutlib.wavefrontmap import wavefrontmap
@@ -58,7 +59,7 @@ def main():
         wavefrontMapObject = None
 
     # initialize donutfit 
-    initDict = {"nZernikeTerms":options.nZernikeTerms,"fixedParamArray1":fpaList1,"fixedParamArray2":fpaList2,"fixedParamArray3":fpaList3,"nFits":options.nFits,"nPixels":options.nPixels,"nbin":options.nbin,"scaleFactor":options.scaleFactor,"pixelOverSample":options.pixelOverSample,"iTelescope":options.iTelescope,"inputrzero":options.rzero,"debugFlag":options.debugFlag,"gain":options.gain,"wavefrontMap":wavefrontMapObject}
+    initDict = {"nZernikeTerms":options.nZernikeTerms,"fixedParamArray1":fpaList1,"fixedParamArray2":fpaList2,"fixedParamArray3":fpaList3,"nFits":options.nFits,"nPixels":options.nPixels,"nbin":options.nbin,"scaleFactor":options.scaleFactor,"pixelOverSample":options.pixelOverSample,"iTelescope":options.iTelescope,"inputrzero":options.rzero,"debugFlag":options.debugFlag,"gain":options.gain,"wavefrontMap":wavefrontMapObject,"deltaWFM":options.deltaWFM,"waveLength":options.waveLength}
     df = donutfit(**initDict)
 
     # build inputZernikeDict 
@@ -99,6 +100,28 @@ def main():
 
         # do the fit
         df.setupFit(**fitDict)
+
+        # do additional wavefront mesh fit
+        if options.doWave:
+            df.gFitFunc.closeFits()
+
+            # now fit an extra component of the wavefront, described by a mesh of points
+            winputDict = {"outputPrefix":outputName,"maxIterations":options.maxIterations,"tolerance":options.tolerance,"defineGrid":options.defineGrid,"spacing":options.spacing}
+
+            wfit = wavefit(df,**winputDict)
+
+            # setup initial values to 0 (redundant with defineGrid)
+            values = np.zeros(wfit.npar)
+            for ipar in range(wfit.npar):
+                ix,iy = wfit.coarsegrid[ipar]  # in case we want starting values to vary with x,y
+                values[ipar] = 0.0
+            wfit.setupCoarseGrid(values)
+
+            # do the fit
+            wfit.doFit()
+
+            # get the results
+            wfit.outFit()
 
     # if we are using a scratch disk, copy all the files from the scratch area back to the outputDirectory
     if options.scratchDir!="":        
