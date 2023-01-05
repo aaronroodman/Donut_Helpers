@@ -35,7 +35,7 @@ def parsePipelineArguments(extras={}):
     argv = sys.argv
     argstr = ""
     for sitem in argv[1:]:
-        argstr = argstr + sitem + " " 
+        argstr = argstr + sitem + " "
 
     # setup the Argument Parser, start with configuration file
     arg_parser = argparse.ArgumentParser(
@@ -74,9 +74,9 @@ def parsePipelineArguments(extras={}):
 
 
     # define sections, variables, types for configuration file parameters
-    
+
     # define sections
-    config_definition = {"General":{},"Image":{},"Sextractor":{},"DonutEngine":{},"Analysis":{}}
+    config_definition = {"General":{},"Image":{},"Sextractor":{},"DonutEngine":{},"WaveFit":{},"Analysis":{}}
 
     # in each section, define variables and setup their information
     # this includes their type:  b is Boolean, i is Integer, f is Float, s is String, l is List, d is Dictionary
@@ -95,6 +95,7 @@ def parsePipelineArguments(extras={}):
                                     "doScience":['b',False,"analyze Science chips"],
                                     "doPlus":['b',False,"analyze Plus FandA chips"],
                                     "doMinus":['b',False,"analyze Minus FandA chips"],
+                                    "doWave":['b',False,"do WaveFit"],
                                     "extNamesInput":['l','None',"list of extentions"]}
 
     config_definition["Image"] = {"biasFile":['s',"","bias fits file"],
@@ -132,9 +133,16 @@ def parsePipelineArguments(extras={}):
                                                                  'FN4':[0.0,0.0,11.0,0.0,0.0,0.0,0.0,-0.05,-0.25,-0.14]}",
                                                             "dictionary with mapping from extension to initial parameter values"],
                                         "gain":['d',1.0,"Gain in e/ADU"],
-                                        "wavefrontMapFile":['s',None,"Name of wavefront Map File"]
+                                        "wavefrontMapFile":['s',None,"Name of wavefront Map File"],
+                                        "deltaWFM":['s',None,"Name of mirror figure File"],
+                                        "waveLength":['d',700.,"Lambda in nm"]
                                         }
 
+    config_definition["WaveFit"] = {"outputPrefix":['s',"wavetest","Output File prefix"],
+                                    "maxIterations":['i',10000,'Maximum number of iterations'],
+                                    "tolerance":['d',3.0,'Tolerance'],
+                                    "defineGrid":['b',True,"Define Grid"],
+                                    "spacing":['i',64,"Grid Size"]}
 
     config_definition["Analysis"] = {"donutCutString":['s',"nele>0. and numpy.log10(nele)>3.5 and numpy.sqrt(zern5*zern5+zern6*zern6+zern7*zern7+zern8*zern8)<3.0 and abs(zern4)>5 and abs(zern4)<15","Donut cut string"],
                                      "ndonutscut":['i',10,"Minimum number of donuts per chip"],
@@ -153,7 +161,7 @@ def parsePipelineArguments(extras={}):
     # decode the configuration file, fill configDict, using config_definition
     if cloptions.configFile:
         config_parser = configparser.SafeConfigParser()
-        config_parser.optionxform=str  #keeps option name case 
+        config_parser.optionxform=str  #keeps option name case
         okfiles = config_parser.read(cloptions.configFile)
 
         # loop over the sections and decode each variable
@@ -203,7 +211,7 @@ def parsePipelineArguments(extras={}):
     # so these get passed to next level in cascade of scripts
     remaining = ""
     for sitem in remaining_options:
-        remaining = remaining + sitem + " " 
+        remaining = remaining + sitem + " "
     optionsDict["remaining"] = remaining
     print(remaining)
 
@@ -233,7 +241,7 @@ def parsePipelineArguments(extras={}):
 
     # done, return as a namespace
     options = bunch(optionsDict)
-                                    
+
     return options
 
 def cleanDonutsDir(image,date,sequence,rootDirectory):
@@ -253,7 +261,7 @@ def cleanDonutsDir(image,date,sequence,rootDirectory):
     # remove .corr.fits.fz if they already exist
     command = "rm *.corr.fits.fz"
     os.system(command)
-        
+
     command = "fpack -D -Y *.corr.fits"
     os.system(command)
 
@@ -284,7 +292,7 @@ def waitForBatch(delay=60.0,maxcount=100,commands=['bjobs', '-sum','-noheader','
     """
     ok = False
     count = 0
-    while (not ok):        
+    while (not ok):
         result = subprocess.run(commands, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # decode number of jobs
         njobs = int(result.stdout.rsplit()[0])
@@ -292,7 +300,7 @@ def waitForBatch(delay=60.0,maxcount=100,commands=['bjobs', '-sum','-noheader','
         if (njobs==nJobsCheck):
             ok = True
             continue
-            
+
         time.sleep(delay)
         count = count+1
         if (count>=maxcount):

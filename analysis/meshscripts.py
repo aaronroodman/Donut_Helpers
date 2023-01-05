@@ -225,25 +225,45 @@ def plotMeshes(meshName,meshDirectory):
             f.savefig(meshName+"_z%d.png" % (iZ))
 
 
-def plotMeshesDF(dfDirectory,dfName,zVarPattern="z%dcorr"):
-    iZs = [4,5,6,7,8,9,10,11,14,15]
-    da = mkDonutAnaDF(dfDirectory+"/"+dfName+".pkl",iZs,zVarPattern=zVarPattern,sensorSet="ScienceOnly",method="idw",methodVal=(250,1.0),nInterpGrid=32)
-    minDict = {4:-20.,5:-0.2,6:-0.2,7:-0.125,8:-0.125,9:-0.3,10:-0.3,11:-0.15,14:-0.1,15:-0.1}
-    maxDict = {4:20.,5:0.2,6:0.2,7:0.125,8:0.125,9:0.3,10:0.3,11:0.15,14:0.1,15:0.1}
+def plotMeshesDF(dfDirectory,dfName,zVarPattern="z%dcorr",usedFlag=True,minDict={4:-20.,5:-0.2,6:-0.2,7:-0.125,8:-0.125,9:-0.3,10:-0.3,11:-0.15,14:-0.1,15:-0.1},maxDict={4:20.,5:0.2,6:0.2,7:0.125,8:0.125,9:0.3,10:0.3,11:0.15,14:0.1,15:0.1},interactiveFlag=False,iZs=[4,5,6,7,8,9,10,11,14,15]):
+    #iZs = [4,5,6,7,8,9,10,11,14,15]
+    if usedFlag:
+        da = mkDonutAnaDF(dfDirectory+"/"+dfName+".pkl",iZs,zVarPattern=zVarPattern,sensorSet="ScienceOnly",method="idw",methodVal=(250,1.0),nInterpGrid=32,donutCutString="flagFinal==True")
+    else:
+        da = mkDonutAnaDF(dfDirectory+"/"+dfName+".pkl",iZs,zVarPattern=zVarPattern,sensorSet="ScienceOnly",method="idw",methodVal=(250,1.0),nInterpGrid=32)
+        
     for iZ in iZs:
         meshN = "z%dMesh" % (iZ)
         if meshN in da.meshDict:
             aMesh = da.meshDict[meshN]
-            plt.interactive(False)
-            f,a,c = aMesh.plotMeshMPL2D(zmin=minDict[iZ],zmax=maxDict[iZ],cmap=cm.jet)
-            plt.interactive(False)
+            plt.interactive(interactiveFlag)
+            f,a,c = aMesh.plotMeshMPL2D(zmin=minDict[iZ],zmax=maxDict[iZ],cmap=cm.jet,interactiveFlag=interactiveFlag)
+            plt.interactive(interactiveFlag)
             f.savefig(dfName+"_z%d.png" % (iZ))
 
+def plotMeshesDFPub(dfDirectory,dfName,zVarPattern="z%dcorr",usedFlag=True,minDict={4:-20.,5:-0.2,6:-0.2,7:-0.125,8:-0.125,9:-0.3,10:-0.3,11:-0.15,14:-0.1,15:-0.1},maxDict={4:20.,5:0.2,6:0.2,7:0.125,8:0.125,9:0.3,10:0.3,11:0.15,14:0.1,15:0.1},interactiveFlag=False,iZs=[4,5,6,7,8,9,10,11,14,15]):
+    #iZs = [4,5,6,7,8,9,10,11,14,15]
+    if usedFlag:
+        da = mkDonutAnaDF(dfDirectory+"/"+dfName+".pkl",iZs,zVarPattern=zVarPattern,sensorSet="ScienceOnly",method="idw",methodVal=(250,1.0),nInterpGrid=32,donutCutString="flagFinal==True")
+    else:
+        da = mkDonutAnaDF(dfDirectory+"/"+dfName+".pkl",iZs,zVarPattern=zVarPattern,sensorSet="ScienceOnly",method="idw",methodVal=(250,1.0),nInterpGrid=32)
+        
+    for iZ in iZs:
+        meshN = "z%dMesh" % (iZ)
+        if meshN in da.meshDict:
+            aMesh = da.meshDict[meshN]
+            plt.interactive(interactiveFlag)
+            f,a,c = aMesh.plotMeshMPL2DPub(zmin=minDict[iZ],zmax=maxDict[iZ],cmap=cm.jet,interactiveFlag=interactiveFlag)
+            plt.interactive(interactiveFlag)
+            f.savefig(dfName+"_z%d_Pub.png" % (iZ))
 
+
+    
 def submitMeshJobs(dateid,seqno,imageListStr,iterList=[2],nosnipStr='True'):
+    """ do everything in pipeline - not working yet?"""
 
     iterName = ['','first','second']
-    zernListStr = ['','4,5,6,7,8,9,10','4 5 6 7 8 9 10 11 14 15']
+    zernListStr = ['','4 5 6 7 8 9 10','4 5 6 7 8 9 10 11 14 15']
     
     # fit the donuts
     #command = "submitDecamDriver.py -d %d -n %s  -c decam-ScienceExtra-v22.cfg -seq %d -ver 22 --noSnip %s " % (dateid,imageListStr,seqno,nosnipStr)
@@ -256,7 +276,7 @@ def submitMeshJobs(dateid,seqno,imageListStr,iterList=[2],nosnipStr='True'):
     imageList = decodeNumberList(imageListStr)
     for iFile in imageList:
         for i in iterList:
-            command = "bsub -W 0:60 -o dump-%ds%d-%d-%s.log dumpFitsHeadtoTable.py -i '$KIPACDISK/Donuts/%ds%d/%d/v22/DECam*.%s.donut.fits.fz'  -o $KIPACDISK/Donuts/%ds%d/%d/v22/DECam_%d.%s"  % (dateid,seqno,iFile,iterName[i],dateid,seqno,iFile,iterName[i],dateid,seqno,iFile,iFile,iterName[i])
+            command = "bsub -W 2:00 -o dump-%ds%d-%d-%s.log dumpFitsHeadtoTable.py -i '$KIPACDISK/Donuts/%ds%d/%d/v22/DECam*.%s.donut.fits.fz'  -o $KIPACDISK/Donuts/%ds%d/%d/v22/DECam_%d.%s"  % (dateid,seqno,iFile,iterName[i],dateid,seqno,iFile,iterName[i],dateid,seqno,iFile,iFile,iterName[i])
             print(command)
             os.system(command)
 

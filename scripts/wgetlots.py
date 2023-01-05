@@ -1,9 +1,5 @@
 #! /usr/bin/env python
-#
-# $Rev:: 203                                                          $:  
-# $Author:: roodman                                                   $:  
-# $LastChangedDate:: 2015-05-20 10:20:01 -0700 (Wed, 20 May 2015)     $:  
-#
+
 import argparse
 import os
 import pdb
@@ -103,7 +99,7 @@ for expid,dateid in dateNimage:
         weblocation = "https://desar2.cosmology.illinois.edu/DESFiles/desarchive/DTS/raw/%d" % (dateid)
 
 
-    command = "wget --no-check-certificate --http-user=roodman --http-password=roo70chips -nc -nd -nH -r -k -p -np -nv --cut-dirs=3 %s/DECam_00%d.fits.fz" % (weblocation,expid)
+    command = "wget --no-check-certificate --http-user=roodman --http-password=FITdonuts123 -nc -nd -nH -r -k -p -np -nv --cut-dirs=3 %s/DECam_00%d.fits.fz" % (weblocation,expid)
     if options.info:
         #print command
         a = 1

@@ -48,7 +48,7 @@ for i in imageList:
         if not os.path.exists(logdir):
             os.mkdir(logdir)
 
-        command = "bsub -R rhel60 -C 0 %s -o %s/Donuts/logfiles/%d/DECam_00%d.log decamDriver.py -i %d -o %s/%d -c %s -seq %d -ver %d -d %s %s" % (options.queue,options.rootDirectory,options.date,i,i,outputAreaexp,i,options.configFile,options.sequence,options.versionNum,options.date,options.remaining)
+        command = "bsub -C 0 %s -o %s/Donuts/logfiles/%d/DECam_00%d.log decamDriver.py -i %d -o %s/%d -c %s -seq %d -ver %d -d %s %s" % (options.queue,options.rootDirectory,options.date,i,i,outputAreaexp,i,options.configFile,options.sequence,options.versionNum,options.date,options.remaining)
 
         print("Here is the command:")
         print(command)

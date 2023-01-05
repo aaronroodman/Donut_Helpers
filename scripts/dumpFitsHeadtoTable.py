@@ -20,6 +20,8 @@ parser.add_argument("-o", "--outputFile",
                   help="output root file name")
 parser.add_argument("-n", "--imageListString", dest="imageListString",default=None,
                   help="string with image lists, eg. 1:10,20,30:100 ")
+parser.add_argument("-fileNumber", "--fileNumber", dest="fileNumber",default=None,
+                  help="set IFILE by hand to desired value ")
 
 
 # collect the options 
@@ -29,18 +31,24 @@ options = parser.parse_args()
 def getTagList(fileName):
 
     # remove these tags
-    headerTagsToDrop = "SIMPLE","BITPIX","NAXIS","NAXIS1","NAXIS2","CTYPE1","CTYPE2","OBJECT","DETSEC","CHECKSUM","DATASUM","TELFOCUS","DATE-OBS","TIME-OBS","DTACQNAM","RECNO","DIMMSEE","TELRA","TELDEC","UPTRTEMP","LWTRTEMP"
+    headerTagsToDrop = "SIMPLE","BITPIX","NAXIS","NAXIS1","NAXIS2","EXTEND","CTYPE1","CTYPE2","OBJECT","DETSEC","CHECKSUM","DATASUM","DX","DY","DZ","TX","TY","TZ","TELFOCUS","FILTER","DATE-OBS","TIME-OBS","OBSTYPE","DTACQNAM","RECNO","DIMMSEE","TELRA","TELDEC","ZD","HA","UPTRTEMP","LWTRTEMP","RA","DEC","MSURTEMP","MAIRTEMP"
 
     # open fits file
     hdulist = pyfits.open(fileName)
     header = hdulist[0].header
+
+    # add IFILE tag
+    if options.fileNumber != None:
+        header['IFILE'] = int(options.fileNumber)
+
+    # get list of keys
     keylist = list(header.keys())
 
     # remove some tags
     for dropit in headerTagsToDrop:
         if keylist.__contains__(dropit):
             keylist.remove(dropit)
-
+            
     hdulist.close()
     return keylist,header
 
@@ -76,6 +84,10 @@ for iFile,aFile in enumerate(inputFiles):
     print(iFile,aFile)
     hdulist = pyfits.open(aFile)
     header = hdulist[0].header
+
+    # add IFILE tag
+    if options.fileNumber != None:
+        header['IFILE'] = int(options.fileNumber)
 
     headList = []
     for aTag in headerTags:

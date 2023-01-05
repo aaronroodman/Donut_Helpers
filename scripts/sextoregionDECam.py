@@ -10,7 +10,7 @@
 import numpy
 import argparse
 import os
-import asciidata
+from astropy.io import ascii
 from donutlib.decamutil import decaminfo
 
 parser = argparse.ArgumentParser(prog='sextoregionDECam')
@@ -48,8 +48,7 @@ def checkCuts(mysexcat,irow,cutString):
     
     # apply cut
     if cutString != "" :
-        passstring = "passCuts = %s" % (cutString)
-        exec(passstring)
+        passCuts = eval(cutString)
     else:
         passCuts = True
     return passCuts
@@ -61,7 +60,7 @@ infoDict = dinfo.info()
 
 
 # cat file name
-mysexcat = asciidata.open(options.catFile)
+mysexcat = ascii.read(options.catFile)
 
 
 # open region file
@@ -74,7 +73,7 @@ regf.write("global color=green dashlist=8 3 width=1 select=1 highlite=1 dash=0 f
 regf.write("physical\n")
 
 # Loop over Sextractor objects
-for irow in range(mysexcat.nrows):
+for irow in range(mysexcat.as_array().shape[0]):
 
     # apply cuts as desired, based on cutSet
     passCuts = checkCuts(mysexcat,irow,options.cutString)

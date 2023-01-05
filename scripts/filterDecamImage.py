@@ -1,13 +1,10 @@
 #! /usr/bin/env python
 #
-# $Id: filterImage.py,v 1.3 2011/01/05 08:43:38 roodman Exp $
-#
-#
 # Filter image in desired extensions with a postage stamp
 #
 import numpy
 import scipy
-import pyfits
+from astropy.io import fits as  pyfits
 import argparse
 from scipy import fftpack
 
@@ -76,10 +73,10 @@ def getFilterFFT(filterFile,shape):
     nyImage,nxImage = shape
 
     # assume all dimensions are EVEN
-    nystart = ( nyImage/2 - 1 ) - (nyraw/2 ) 
-    nyend = ( nyImage/2 - 1 ) + (nyraw/2 )
-    nxstart = ( nxImage/2 - 1 ) - (nxraw/2 ) 
-    nxend = ( nxImage/2 - 1 ) + (nxraw/2 )
+    nystart = int(( nyImage/2 - 1 ) - (nyraw/2 ))
+    nyend = int(( nyImage/2 - 1 ) + (nyraw/2 ))
+    nxstart = int( ( nxImage/2 - 1 ) - (nxraw/2 ) )
+    nxend = int(( nxImage/2 - 1 ) + (nxraw/2 ))
     
     filterArr[nystart:nyend,nxstart:nxend] = filterDataNorm
     fftFilter = fftpack.fft2(filterArr)
@@ -117,7 +114,7 @@ headerOutput = dataOutputHDU.header
 for key in headerExt:
     val = headerExt[key]
     if type(val) != pyfits.header._HeaderCommentaryCards :
-        headerOutput.update(key,headerExt[key])
+        headerOutput[key] = headerExt[key]
 
 hduOutput.append(dataOutputHDU)
 

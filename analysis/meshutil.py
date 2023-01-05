@@ -4,6 +4,7 @@ import pandas as pd
 import numpy.lib.index_tricks as itricks
 import scipy
 import statsmodels.api as sm
+from scipy.spatial import cKDTree
 import copy
 import pickle
 import pdb
@@ -215,7 +216,6 @@ def mkDonutAnaDF(dataFrameName,zPointsList,sensorSet,method,methodVal=None,donut
 
     da = donutana(**inDict)
     return da
-
 
 
 def getCentralVal(da):
@@ -741,5 +741,117 @@ For Z4 it adjusts the FandA mesh to have median(extrafocal) = -median(intrafocal
 
     adjustAllMeshes(daF.meshDict,summaryDict)
     return summaryDict
+
+def matchAndAdd(dfAll,dfAdjust,dfAdd,flagName='flagZemax'):
+    # build tree for dfAll
+    xArr = dfAll['XDECAM'].values
+    yArr = dfAll['YDECAM'].values
+    z4delta_values = dfAdjust.loc[dfAll['IFILE']]['z4delta'].values
+    dfAll['z4delta'] = z4delta_values
+    zArr = dfAll['ZERN4'].values*(1500./8.7)-dfAll['z4delta']
+    xyzArr = numpy.array([xArr,yArr,zArr])
+    xyztArr = xyzArr.transpose()
+    kdtree = cKDTree(xyztArr)
+    
+    # also add other needed delta,thetas from dfAdjust
+    z5delta_values = dfAdjust.loc[dfAll['IFILE']]['z5delta'].values
+    z5thetax_values = dfAdjust.loc[dfAll['IFILE']]['z5thetax'].values
+    z5thetay_values = dfAdjust.loc[dfAll['IFILE']]['z5thetay'].values
+    z6delta_values = dfAdjust.loc[dfAll['IFILE']]['z6delta'].values
+    z6thetax_values = dfAdjust.loc[dfAll['IFILE']]['z6thetax'].values
+    z6thetay_values = dfAdjust.loc[dfAll['IFILE']]['z6thetay'].values
+    z7delta_values = dfAdjust.loc[dfAll['IFILE']]['z7delta'].values
+    z8delta_values = dfAdjust.loc[dfAll['IFILE']]['z8delta'].values
+    z9delta_values = dfAdjust.loc[dfAll['IFILE']]['z9delta'].values
+    z10delta_values = dfAdjust.loc[dfAll['IFILE']]['z10delta'].values
+    z11delta_values = dfAdjust.loc[dfAll['IFILE']]['z11delta'].values
+    z14delta_values = dfAdjust.loc[dfAll['IFILE']]['z14delta'].values
+    z15delta_values = dfAdjust.loc[dfAll['IFILE']]['z15delta'].values
+
+    dfAll['z5delta'] = z5delta_values
+    dfAll['z5thetax'] = z5thetax_values
+    dfAll['z5thetay'] = z5thetay_values
+    dfAll['z6delta'] = z6delta_values
+    dfAll['z6thetax'] = z6thetax_values
+    dfAll['z6thetay'] = z6thetay_values
+    dfAll['z7delta'] = z7delta_values
+    dfAll['z8delta'] = z8delta_values
+    dfAll['z9delta'] = z9delta_values
+    dfAll['z10delta'] = z10delta_values
+    dfAll['z11delta'] = z11delta_values
+    dfAll['z14delta'] = z14delta_values
+    dfAll['z15delta'] = z15delta_values
+    
+    dfAll['z4corr'] = dfAll['ZERN4']*(1500./8.7)-dfAll['z4delta']
+    dfAll['z5corr'] = dfAll['ZERN5']-(dfAll['z5delta']+dfAll['XDECAM']*dfAll['z5thetay']+dfAll['YDECAM']*dfAll['z5thetax'])
+    dfAll['z6corr'] = dfAll['ZERN6']-(dfAll['z6delta']+dfAll['XDECAM']*dfAll['z6thetay']+dfAll['YDECAM']*dfAll['z6thetax'])
+    dfAll['z7corr'] = dfAll['ZERN7']-dfAll['z7delta']
+    dfAll['z8corr'] = dfAll['ZERN8']-dfAll['z8delta']
+    dfAll['z9corr'] = dfAll['ZERN9']-dfAll['z9delta']
+    dfAll['z10corr'] = dfAll['ZERN10']-dfAll['z10delta']
+    dfAll['z11corr'] = dfAll['ZERN11']-dfAll['z11delta']
+    dfAll['z14corr'] = dfAll['ZERN14']-dfAll['z14delta']
+    dfAll['z15corr'] = dfAll['ZERN15']-dfAll['z15delta']
+
+    
+    # find matches from dfAdd
+    xtry = dfAdd['x']
+    ytry = dfAdd['y']
+    ztry = dfAdd['zern4']
+
+    xinput = numpy.array([xtry,ytry,ztry])
+    xtinput = xinput.transpose()
+    # matches are unique - just use 1st one 
+    d,i = kdtree.query(xtinput,k=2)
+    
+    # add a flag to the dfAll
+    dfAll[flagName] = False
+    dfAll.loc[i[:,0],flagName] = True 
+
+    return dfAll
+
+def combineMeshFiles(zernList,meshDir,meshFileName):
+    """ read in all the Combo meshes, combine into a single DF
+    """
+    # build DataFrame
+    dfAll = pd.DataFrame(columns=['Sensor','x','y'])
+    for iZ in zernList:
+        fileName = "%s/z%dMesh_%s.dat" % (meshDir,iZ,meshFileName)    
+        dataPoints = pd.read_csv(fileName, delim_whitespace=True,header=None,dtype={'Sensor': '|S', 'x': numpy.float64, 'y': numpy.float64,'z': numpy.float64, 'w': numpy.float64},names=['Sensor', 'x', 'y', 'z', 'w'])
+        dfAll['Sensor'] = dataPoints['Sensor']
+        dfAll['x'] = dataPoints['x']
+        dfAll['y'] = dataPoints['y']
+        dfAll['zern%d' % (iZ)] = dataPoints['z']
+        dfAll['wzern%d' % (iZ)] = dataPoints['w']
+    return dfAll
+
+def combineMeshData(imgList,zernList,singleDirectory,comboDirectory,meshPrefix):
+    """ my Mesh pipeline did not keep track of the original Zernike values, and so couldn't keep track of which of the donuts were used or not in the final meshes
+    this combineMeshData method inputs the original data, the adjustment values, and the final meshes, matches them by x,y,z4 and then flags the donuts used in the final sample
+    and outputs as another pickle file """
+
+    imageList = decodeNumberList(imgList)
+
+    frames = []
+    for anImage in imageList:
+        fileName = "%s/%s_%d.pkl" % (singleDirectory,meshPrefix,anImage)
+        frames.append(pd.read_pickle(fileName))
+
+    allFrames = pd.concat(frames)
+    allFrames.reset_index(inplace=True, drop=True) 
+    allFrames.to_pickle("%s/%s_All.pkl" % (singleDirectory,meshPrefix))
+    
+    # get needed data Frames
+    ##allFrames = pd.read_pickle(singleDirectory+"/"+meshPrefix+".pkl")  #pickle with donut data by image, eg. "Meshesv22/Science-20140212s2-v22i2_All.pkl"
+
+    dfAdjust = pd.read_pickle(comboDirectory+"/"+meshPrefix+"_All.pkl") #pickle with Zernike adjustment values eg. "ComboMeshesZemaxIteration2v22/Science-20140212s2-v22i2_All.pkl"
+
+    dfFinal = combineMeshFiles(zernList,comboDirectory,meshPrefix+"_All")  #combineMeshFiles post culling and adjustment, eg. "ComboMeshesZemaxIteration2v22","Science-20140212s2-v22i2_All"
+
+    # match the data frames, and combine data
+
+    allFramesP = matchAndAdd(allFrames,dfAdjust,dfFinal,flagName='flagFinal')  #make a data frame with both original and adjusted Zernike coefficients, plus flag for usage in final meshes
+
+    allFramesP.to_pickle(comboDirectory+"/ComboMesh_"+meshPrefix+"_All.pkl",protocol=2)  #write data frame to output pickle
 
     

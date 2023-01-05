@@ -121,7 +121,8 @@ if not options.noSnip:
         if options.doFilter:
             # filter this file for sextractor 
             filterFile = os.path.join(options.outputDirectory,baseName + "." + extName + ".filter.fits")
-            donutFilterFile = "~/Astrophysics/Donuts/donut-8.7.fits"
+            #donutFilterFile = "~/Astrophysics/Donuts/donut-8.7.fits"
+            donutFilterFile = options.donutFilterFile
             donutFilterFile = os.path.expanduser(donutFilterFile)
             command = "filterDecamImage.py -i %s -o %s -f %s" %(corrFile,filterFile,donutFilterFile)
             print(command)

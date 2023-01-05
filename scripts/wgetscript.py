@@ -1,9 +1,5 @@
 #! /usr/bin/env python
-#
-# $Rev:: 212                                                          $:  
-# $Author:: roodman                                                   $:  
-# $LastChangedDate:: 2015-08-17 12:07:18 -0700 (Mon, 17 Aug 2015)     $:  
-#
+
 import argparse
 import os
 from scriptUtil import decodeNumberList
@@ -42,12 +38,20 @@ else:
 
 # find correct location at NCSA - changed again, but all links are here
 # obsolete: weblocation = "https://desar2.cosmology.illinois.edu/DESFiles/desardata/DTS/src/%d/src" % (options.date)
-weblocation = "https://desar2.cosmology.illinois.edu/DESFiles/desarchive/DTS/raw/%d" % (options.date)
+#weblocation = "https://desar2.cosmology.illinois.edu/DESFiles/desarchive/DTS/raw/%d" % (options.date)
+
+
+# find correct location at NCSA
+if options.date<20140910:
+    weblocation = "https://desar2.cosmology.illinois.edu/DESFiles/desardata/DTS/src/%d/src" % (options.date)
+else:
+    weblocation = "https://desar2.cosmology.illinois.edu/DESFiles/desarchive/DTS/raw/%d" % (options.date)
 
     
 for run in imageList:
 
-    command = "wget --no-check-certificate --http-user=roodman --http-password=roo70chips -nc -nd -nH -r -k -p -np -nv --cut-dirs=3 %s/DECam_00%d.fits.fz" % (weblocation,run)
+    command = "wget --no-check-certificate --http-user=roodman --http-password=FITdonuts123 -nc -nd -nH -r -k -p -np -nv --cut-dirs=3 %s/DECam_00%d.fits.fz" % (weblocation,run)
+
 
 ###  old command using anon ftp
 ###command = "wget ftp://desar.cosmology.illinois.edu/DESFiles/desardata/%s/src/%d/src/DECam_00%d.fits.fz" % (dtsName,options.date,run)

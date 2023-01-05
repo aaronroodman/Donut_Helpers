@@ -6,11 +6,11 @@
 #
 # output postage stamps from a sextractor catalog to a given directory
 #
-import numpy
+import numpy as np
 import argparse
 import os
 from astropy.io import ascii
-import pyfits
+from astropy.io import fits as pyfits
 import string
 from collections import OrderedDict
 from donutlib.donututil import clipPostageStamp
@@ -53,6 +53,24 @@ infoDict = dinfo.info()
 #    if not infoDict[extName]["FAflag"]:
 #        clearRegion[extName] = [57,2104]
 
+# method to add data to catalog
+def addData(mysexcat,extName):
+    """ add some useful columns 
+    """
+    mysexcat['AVE_IMAGE'] = (mysexcat['A_IMAGE'] + mysexcat['B_IMAGE'])/2.
+
+    rdecam_list = []
+    for irow in range(mysexcat.as_array().shape[0]):
+        # calculate whether this is in the good region (use only 1/2 of the chips for now)
+        iX = mysexcat["X_IMAGE"][irow] 
+        iY = mysexcat["Y_IMAGE"][irow]
+
+        # calculate rdecam
+        xdecam,ydecam = dinfo.getPosition(extName,iX,iY)
+        rdecam_list.append(np.sqrt(xdecam*xdecam + ydecam*ydecam))
+
+    mysexcat['RDECAM'] = np.array(rdecam_list)
+
 # method to check that cats are passed
 def checkCuts(mysexcat,irow,extName,cutString):
 
@@ -76,12 +94,11 @@ def checkCuts(mysexcat,irow,extName,cutString):
 
     # calculate rdecam
     xdecam,ydecam = dinfo.getPosition(options.extName,iX,iY)
-    rdecam = numpy.sqrt(xdecam*xdecam + ydecam*ydecam)
+    rdecam = np.sqrt(xdecam*xdecam + ydecam*ydecam)
     
     # exec the Cuts
-    passstring = "passCuts = %s" % (cutString)
     if cutString != "":
-        exec(passstring)
+        passCuts = eval(cutString) 
     else:
         passCuts = True
     return passCuts
@@ -104,55 +121,36 @@ hdu = pyfits.open(fitsFileName)
 inputHeader = hdu[0].header
 
 # get some words from original header
-headerOutWords = ["G-SEEING","TELFOCUS","FILTER","DATE-OBS","TIME-OBS","OBSID","OBSTYPE","DTACQNAM","RECNO","DIMMSEE","TELRA","TELDEC","ZD","HA","LST","UPTRTEMP","LWTRTEMP","EXPTIME","RA","DEC","MSURTEMP","MAIRTEMP","MJD-OBS"]
+headerOutWords = ["G-SEEING","TELFOCUS","FILTER","DATE-OBS","TIME-OBS","OBSID","OBSTYPE","DTACQNAM","FILENAME","RECNO","DIMMSEE","TELRA","TELDEC","ZD","HA","LST","UPTRTEMP","LWTRTEMP","EXPTIME","RA","DEC","MSURTEMP","MAIRTEMP","MJD-OBS"]
 originalHeader = OrderedDict()
 
 # if TELFOCUS is present parse it
 if list(inputHeader.keys()).count("TELFOCUS")>0:
     try:
         telfocusstr = inputHeader["TELFOCUS"]
-        words = string.split(telfocusstr,",")
+        words = telfocusstr.split(",")
 
-        if dx==NAN :
-            dx = -99999.9
-        else:                
-            dx = float(words[0])
-
-        if dy==NAN :
-            dy = -99999.9
-        else:   
-            dy = float(words[1])
-
-        if dz==NAN :
-            dz = -99999.9
-        else:
-            dz = float(words[2])
-
-        if tx==NAN :
-            tx = -99999.9
-        else:
-            tx = float(words[3])
-
-        if ty==NAN :
-            ty = -99999.9
-        else:
-            ty = float(words[4])
-
-        if tz==NAN :
-            tz = -99999.9
-        else:
-            tz = float(words[5])
-        
-        # add to originalHeader
-        originalHeader["DX"] = dx
-        originalHeader["DY"] = dy
-        originalHeader["DZ"] = dz
-        originalHeader["TX"] = tx
-        originalHeader["TY"] = ty
-        originalHeader["TZ"] = tz
+        dx = float(words[0])
+        dy = float(words[1])
+        dz = float(words[2])
+        tx = float(words[3])
+        ty = float(words[4])
+        tz = float(words[5])
     except:
-        print("sexcatServerDECam:  problem unpacking TELFOCUS")
-
+        dx = -999999.9
+        dy = -999999.9
+        dz = -999999.9
+        tx = -999999.9
+        ty = -999999.9
+        tz = -999999.9
+    # add to originalHeader
+    originalHeader["DX"] = dx
+    originalHeader["DY"] = dy
+    originalHeader["DZ"] = dz
+    originalHeader["TX"] = tx
+    originalHeader["TY"] = ty
+    originalHeader["TZ"] = tz
+    
 # if DTACQNAM
 if list(inputHeader.keys()).count("DTACQNAM")>0:
     try:
@@ -160,6 +158,14 @@ if list(inputHeader.keys()).count("DTACQNAM")>0:
         originalHeader["IFILE"] = ifile
     except:
         print("sexcatServerDECam: problem unpacking DTACQNAM")
+
+# if FILENAME
+if list(inputHeader.keys()).count("FILENAME")>0:
+    try:
+        ifile = int(inputHeader["FILENAME"][6:14])
+        originalHeader["IFILE"] = ifile
+    except:
+        print("sexcatServerDECam: problem unpacking FILENAME")
 
 # loop over words
 for key in headerOutWords:
@@ -231,4 +237,4 @@ for irow in range(mysexcat.as_array().shape[0]):
             stamphdr[key] = extraheader[key]                    
                        
         # write out postage stamp
-        stamphdulist.writeto(fullOutputName,clobber=True)
+        stamphdulist.writeto(fullOutputName,overwrite=True)

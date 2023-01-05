@@ -10,7 +10,7 @@
 #
 import numpy
 import scipy
-import pyfits
+from astropy.io import fits as pyfits
 import argparse
 import pdb
 
@@ -102,7 +102,7 @@ else:
 nEdgeSkip = 6
 nOverscanColUsed = float(options.nOverscanCol - nEdgeSkip)
 nRows,nCols = dataExt1.shape
-nColsHalf = nCols/2
+nColsHalf = int(nCols/2)
 
 # AmpB
 
@@ -193,7 +193,7 @@ hduOutput.append(dataOutputHDU)
 
 # write out file
 hduOutput.info()
-hduOutput.writeto(options.outputFile,clobber=True)
+hduOutput.writeto(options.outputFile,overwrite=True)
 
 
 
